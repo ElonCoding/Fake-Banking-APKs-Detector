@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fake Banking APK Detector – Sample Frontend</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-50">
+    <div id="root" class="min-h-screen p-6"></div>
+
+    <script type="text/babel">
+      function App() {
+        const [file, setFile] = React.useState(null);
+        const [loading, setLoading] = React.useState(false);
+        const [result, setResult] = React.useState(null);
+        const [error, setError] = React.useState(null);
+
+        async function analyze() {
+          if (!file) return;
+          setLoading(true);
+          setError(null);
+          setResult(null);
+          try {
+            const form = new FormData();
+            form.append('file', file);
+            const res = await fetch('http://localhost:8000/api/analyze', { method: 'POST', body: form });
+            if (!res.ok) throw new Error('Request failed: ' + res.status);
+            const data = await res.json();
+            setResult(data);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        return (
+          <div className="mx-auto max-w-3xl">
+            <h1 className="text-2xl font-bold mb-4">Fake Banking APK Detector</h1>
+            <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+              <input type="file" accept=".apk" onChange={(e)=>setFile(e.target.files[0])} className="block w-full"/>
+              <button onClick={analyze} disabled={!file || loading} className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50">
+                {loading ? 'Analyzing...' : 'Analyze'}
+              </button>
+              {error && <div className="text-red-600 text-sm">{error}</div>}
+            </div>
+            {result && (
+              <div className="mt-6 bg-white rounded-2xl shadow p-4">
+                <h2 className="text-lg font-semibold mb-2">Analysis Result</h2>
+                <pre className="text-xs overflow-auto bg-slate-50 p-3 rounded">{JSON.stringify(result, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
