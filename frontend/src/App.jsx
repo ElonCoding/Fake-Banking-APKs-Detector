@@ -16,17 +16,52 @@ function ApkDetector() {
     }
   };
 
-  const handleScanApp = () => {
-    // This is where you would typically send data to your backend
-    // For now, let's simulate a detection result
-    setDetectionResult({
-      isFake: true,
-      unverified: true,
-      permissionsCheck: true,
-      sslCertificate: true,
-      appStoreAuthenticity: true,
-      trustScore: 25,
-    });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleScanApp = async () => {
+    if (!appIcon) {
+      setError('Please upload an APK file');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', appIcon);
+
+      const response = await fetch('http://127.0.0.1:8000/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze APK');
+      }
+
+      const result = await response.json();
+      
+      setDetectionResult({
+        isFake: result.data.risk_score >= 80,
+        unverified: result.data.risk_score >= 40,
+        permissionsCheck: result.data.suspicious_permissions.length > 0,
+        sslCertificate: result.data.network_calls.some(call => call.includes('malicious')),
+        appStoreAuthenticity: result.data.risk_score < 40,
+        trustScore: 100 - result.data.risk_score,
+        apkName: result.data.apk_name,
+        sha256: result.data.sha256,
+        mlPrediction: result.data.ml_prediction,
+        certificateIssuer: result.data.certificate_issuer,
+        suspiciousPermissions: result.data.suspicious_permissions,
+        networkCalls: result.data.network_calls
+      });
+    } catch (err) {
+      setError(err.message || 'An error occurred while analyzing the APK');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -75,110 +110,81 @@ function ApkDetector() {
                 />
               </div>
               <div>
-                <Label htmlFor="appIcon">Upload App Icon (optional)</Label>
-                <Input id="appIcon" type="file" onChange={handleFileChange} />
+                <Label htmlFor="appIcon">Upload APK File</Label>
+                <Input 
+                  id="appIcon" 
+                  type="file" 
+                  onChange={handleFileChange} 
+                  accept=".apk"
+                  className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
               </div>
-              <Button onClick={handleScanApp} className="w-full bg-blue-500 hover:bg-blue-600 text-white">
-                Scan App
+              <Button 
+                onClick={handleScanApp} 
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Scanning...' : 'Scan App'}
               </Button>
+              {error && (
+                <div className="text-red-500 text-sm mt-2">{error}</div>
+              )}
             </div>
           </div>
 
           {detectionResult && (
             <div>
               <h2 className="text-xl font-semibold mb-4">Detection Results</h2>
-              <div className="space-y-2">
-                <div className="flex items-center text-green-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5 mr-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>Fake App Detected!</span>
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600">
+                  <strong>APK Name:</strong> {detectionResult.apkName}
                 </div>
-                <div className="flex items-center text-red-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5 mr-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                  <span>Unverified</span>
+                <div className="text-sm text-gray-600">
+                  <strong>SHA256:</strong> {detectionResult.sha256.substring(0, 16)}...
                 </div>
-                <div className="flex items-center text-green-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5 mr-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>Permissions Check</span>
+                <div className="text-sm">
+                  <strong>ML Prediction:</strong> 
+                  <span className={detectionResult.isFake ? 'text-red-600' : 'text-green-600'}>
+                    {detectionResult.mlPrediction}
+                  </span>
                 </div>
-                <div className="flex items-center text-green-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5 mr-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>SSL Certificate</span>
+                <div className="text-sm">
+                  <strong>Certificate:</strong> {detectionResult.certificateIssuer}
                 </div>
-                <div className="flex items-center text-green-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5 mr-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>App Store Authenticity</span>
-                </div>
+                
+                {detectionResult.suspiciousPermissions.length > 0 && (
+                  <div>
+                    <strong className="text-sm">Suspicious Permissions:</strong>
+                    <ul className="text-sm text-red-600 mt-1">
+                      {detectionResult.suspiciousPermissions.map((perm, idx) => (
+                        <li key={idx}>• {perm}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {detectionResult.networkCalls.length > 0 && (
+                  <div>
+                    <strong className="text-sm">Network Calls:</strong>
+                    <ul className="text-sm mt-1">
+                      {detectionResult.networkCalls.map((call, idx) => (
+                        <li key={idx} className={call.includes('malicious') ? 'text-red-600' : 'text-green-600'}>
+                          • {call}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
+              
               <div className="mt-4">
                 <h3 className="text-lg font-semibold">Trust Score</h3>
                 <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mt-2">
                   <div
-                    className="bg-red-500 h-2.5 rounded-full"
+                    className={`h-2.5 rounded-full ${
+                      detectionResult.trustScore >= 80 ? 'bg-green-500' : 
+                      detectionResult.trustScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
                     style={{ width: `${detectionResult.trustScore}%` }}
                   ></div>
                 </div>
@@ -187,8 +193,14 @@ function ApkDetector() {
             </div>
           )}
         </CardContent>
-        {detectionResult && detectionResult.isFake && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4 rounded-b-lg">
+        {detectionResult && (
+          <div className={`border-l-4 p-4 mt-4 rounded-b-lg ${
+            detectionResult.isFake 
+              ? 'bg-red-100 border-red-500 text-red-700' 
+              : detectionResult.unverified
+              ? 'bg-yellow-100 border-yellow-500 text-yellow-700'
+              : 'bg-green-100 border-green-500 text-green-700'
+          }`}>
             <div className="flex items-center mb-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -206,6 +218,14 @@ function ApkDetector() {
               </svg>
               <p className="font-bold">This App Might Be Fraudulent!</p>
             </div>
+            <p className="text-sm mb-2">
+              {detectionResult.isFake 
+                ? "This app has been identified as a fake banking application. Do not install or provide any personal information. Report it immediately."
+                : detectionResult.unverified 
+                ? "This app appears suspicious. Exercise caution and verify authenticity before installation."
+                : "This app appears to be legitimate. However, always verify with official sources before installation."
+              }
+            </p>
             <ul className="list-disc list-inside text-sm">
               <li>Do not enter sensitive details</li>
               <li>Download only from official stores</li>
